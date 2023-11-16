@@ -5,6 +5,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"log"
 	"os"
 	"regexp"
 
@@ -121,14 +122,15 @@ func runResourceFirewallGroupsTask(c *ssh.Client, d *schema.ResourceData, method
 	session.Stderr = &stderr
 
 	cmd := generateCommand(d, method)
+	log.Printf("[DEBUG] Executing command: %s\n", cmd)
 	err2 := session.Run(cmd)
 	if err2 != nil {
-		return resp, fmt.Errorf("Error running command: %s | Full error: %s", err2, stderr.String())
+		return resp, fmt.Errorf("Error running command: %s, stderr: %s", err2, stderr.String())
 	}
 
 	str := stdout.String()
 	if err := json.Unmarshal([]byte(str), &resp); err != nil {
-		return resp, fmt.Errorf("Error parsing JSON response: %s | Full error: %s", err, stderr.String())
+		return resp, fmt.Errorf("Error parsing JSON response: %s, stderr: %s", err, stderr.String())
 	}
 
 	// existing switch statement for handling response status
