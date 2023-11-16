@@ -18,6 +18,7 @@ func resourceFirewallGroup() *schema.Resource {
 	return &schema.Resource{
 		CreateContext: resourceFirewallGroupCreate,
 		ReadContext:   resourceFirewallGroupRead,
+		//UpdateContext: resourceFirewallGroupUpdate,
 		DeleteContext: resourceFirewallGroupDelete,
 		Schema: map[string]*schema.Schema{
 			"group_name": &schema.Schema{
@@ -62,19 +63,15 @@ func resourceFirewallGroup() *schema.Resource {
 }
 
 func resourceFirewallGroupCreate(ctx context.Context, d *schema.ResourceData, m interface{}) diag.Diagnostics {
+	// Warning or errors can be collected in a slice type
 	var diags diag.Diagnostics
 
 	client := m.(*ssh.Client)
 	output, err := runResourceFirewallGroupsTask(client, d, "add")
-
 	debugLogOutput("create status", output.Status)
 	debugLogOutput("create reason", output.Reason)
-
 	if err != nil {
-		// Log the error message
-		debugLogOutput("create error", err.Error())
-
-		return diag.FromErr(fmt.Errorf("Error creating firewall group: %s", err))
+		return diag.FromErr(err)
 	}
 
 	newUuid, _ := uuid.GenerateUUID()
@@ -84,9 +81,8 @@ func resourceFirewallGroupCreate(ctx context.Context, d *schema.ResourceData, m 
 }
 
 func resourceFirewallGroupRead(ctx context.Context, d *schema.ResourceData, m interface{}) diag.Diagnostics {
+	// Warning or errors can be collected in a slice type
 	var diags diag.Diagnostics
-
-	// Implement read logic here
 
 	return diags
 }
@@ -96,16 +92,13 @@ func resourceFirewallGroupUpdate(ctx context.Context, d *schema.ResourceData, m 
 }
 
 func resourceFirewallGroupDelete(ctx context.Context, d *schema.ResourceData, m interface{}) diag.Diagnostics {
+	// Warning or errors can be collected in a slice type
 	var diags diag.Diagnostics
 
 	client := m.(*ssh.Client)
 	output, err := runResourceFirewallGroupsTask(client, d, "remove")
-
 	if err != nil {
-		// Log the error message
-		debugLogOutput("delete error", err.Error())
-
-		return diag.FromErr(fmt.Errorf("Error deleting firewall group: %s", err))
+		return diag.FromErr(err)
 	}
 
 	debugLogOutput(d.Id(), output.Status)
@@ -130,18 +123,12 @@ func runResourceFirewallGroupsTask(c *ssh.Client, d *schema.ResourceData, method
 	cmd := generateCommand(d, method)
 	err2 := session.Run(cmd)
 	if err2 != nil {
-		// Log the detailed error message
-		debugLogOutput("run command error", fmt.Sprintf("Error running command: %s, stderr: %s", err2, stderr.String()))
-
-		return resp, fmt.Errorf("Error running command: %s", err2)
+		return resp, fmt.Errorf("Error running command: %s | Full error: %s", err2, stderr.String())
 	}
 
 	str := stdout.String()
 	if err := json.Unmarshal([]byte(str), &resp); err != nil {
-		// Log the detailed error message
-		debugLogOutput("parse response error", fmt.Sprintf("Error parsing JSON response: %s, stderr: %s", err, stderr.String()))
-
-		return resp, fmt.Errorf("Error parsing JSON response: %s", err)
+		return resp, fmt.Errorf("Error parsing JSON response: %s | Full error: %s", err, stderr.String())
 	}
 
 	// existing switch statement for handling response status
@@ -171,7 +158,7 @@ func generateCommand(d *schema.ResourceData, method string) string {
 }
 
 func debugLogOutput(id string, output string) {
-	// Debug log for development
+	//Debug log for development
 	f, _ := os.OpenFile("./terraform-provider-fwautomation.log", os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
 	defer f.Close()
 	_, err := f.WriteString(id + ": " + output + "\n")
