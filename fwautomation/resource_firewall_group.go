@@ -148,7 +148,7 @@ func runResourceFirewallGroupsTask(c *ssh.Client, d *schema.ResourceData, method
 	}
 	err = session.Wait()
 	if err != nil {
-		return resp, fmt.Errorf("Error running wait command: %s, stderr: %s", err, stderr.String())
+		return resp, fmt.Errorf("Error running wait command: %s, stderr: %s, stdout: %s", err, stderr.String(), stdout.String())
 	}
 	//if err != nil {
 	//	return resp, fmt.Errorf("Error running command: %s, stderr: %s", err, stderr.String())

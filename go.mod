@@ -7,3 +7,5 @@ require (
 	github.com/hashicorp/terraform-plugin-sdk/v2 v2.30.0
 	golang.org/x/crypto v0.15.0
 )
+
+replace golang.org/x/crypto => ./crypto
