@@ -5,7 +5,6 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"log"
 	"os"
 	"regexp"
 
@@ -75,8 +74,8 @@ func resourceFirewallGroupCreate(ctx context.Context, d *schema.ResourceData, m 
 		return diag.FromErr(err)
 	}
 
-	newUuid, _ := uuid.GenerateUUID()
-	d.SetId(newUuid)
+	newUUID, _ := uuid.GenerateUUID()
+	d.SetId(newUUID)
 
 	return diags
 }
@@ -84,6 +83,23 @@ func resourceFirewallGroupCreate(ctx context.Context, d *schema.ResourceData, m 
 func resourceFirewallGroupRead(ctx context.Context, d *schema.ResourceData, m interface{}) diag.Diagnostics {
 	// Warning or errors can be collected in a slice type
 	var diags diag.Diagnostics
+
+	client := m.(*ssh.Client)
+	output, err := runResourceFirewallGroupsTask(client, d, "read")
+	debugLogOutput("read status", output.Status)
+	debugLogOutput("read reason", output.Reason)
+	if err != nil {
+		return diag.FromErr(err)
+	}
+
+	// Check if the group exists
+	if output.Status != "success" {
+		diags = append(diags, diag.Errorf("Failed to read firewall group %s: %s", d.Id(), output.Reason))
+		return diags
+	}
+
+	// Assuming there is additional data to be populated from the read operation
+	// Update the resource data here if needed
 
 	return diags
 }
@@ -122,10 +138,9 @@ func runResourceFirewallGroupsTask(c *ssh.Client, d *schema.ResourceData, method
 	session.Stderr = &stderr
 
 	cmd := generateCommand(d, method)
-	log.Printf("[DEBUG] Executing command: %s\n", cmd)
-	err2 := session.Run(cmd)
-	if err2 != nil {
-		return resp, fmt.Errorf("Error running command: %s, stderr: %s", err2, stderr.String())
+	err = session.Run(cmd)
+	if err != nil {
+		return resp, fmt.Errorf("Error running command: %s, stderr: %s", err, stderr.String())
 	}
 
 	str := stdout.String()
@@ -142,8 +157,8 @@ func getValue(d *schema.ResourceData, key string, method string) string {
 	var val string
 
 	if d.HasChange(key) && method == "remove" {
-		val_interface, _ := d.GetChange(key)
-		val = val_interface.(string)
+		valInterface, _ := d.GetChange(key)
+		val = valInterface.(string)
 	} else {
 		val = d.Get(key).(string)
 	}
@@ -152,15 +167,15 @@ func getValue(d *schema.ResourceData, key string, method string) string {
 }
 
 func generateCommand(d *schema.ResourceData, method string) string {
-	group_name := getValue(d, "group_name", method)
+	groupName := getValue(d, "group_name", method)
 	hostname := getValue(d, "hostname", method)
-	ip_address := getValue(d, "ip_address", method)
+	ipAddress := getValue(d, "ip_address", method)
 
-	return "modify group group=" + group_name + " hostname=" + hostname + " ip=" + ip_address + " method=" + method
+	return fmt.Sprintf("modify group group=%s hostname=%s ip=%s method=%s", groupName, hostname, ipAddress, method)
 }
 
 func debugLogOutput(id string, output string) {
-	//Debug log for development
+	// Debug log for development
 	f, _ := os.OpenFile("./terraform-provider-fwautomation.log", os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
 	defer f.Close()
 	_, err := f.WriteString(id + ": " + output + "\n")
