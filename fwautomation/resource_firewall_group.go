@@ -94,7 +94,10 @@ func resourceFirewallGroupRead(ctx context.Context, d *schema.ResourceData, m in
 
 	// Check if the group exists
 	if output.Status != "success" {
-		diags = append(diags, diag.Errorf("Failed to read firewall group %s: %s", d.Id(), output.Reason))
+		diags = append(diags, diag.Diagnostic{
+			Severity: diag.Error,
+			Summary:  fmt.Sprintf("Failed to read firewall group %s: %s", d.Id(), output.Reason),
+		})
 		return diags
 	}
 
