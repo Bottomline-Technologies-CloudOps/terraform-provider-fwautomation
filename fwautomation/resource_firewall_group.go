@@ -128,11 +128,6 @@ func runResourceFirewallGroupsTask(c *ssh.Client, d *schema.ResourceData, method
 		return fmt.Errorf("Error running wait command: %s, stderr: %s, stdout: %s", err, stderr.String(), stdout.String())
 	}
 
-	str := stdout.String()
-	if err := json.Unmarshal([]byte(str), &resp); err != nil {
-		return fmt.Errorf("Error parsing JSON response: %s, stderr: %s", err, stderr.String())
-	}
-
 	return nil
 }
 
