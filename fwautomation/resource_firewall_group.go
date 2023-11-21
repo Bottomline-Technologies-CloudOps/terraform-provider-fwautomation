@@ -7,6 +7,7 @@ import (
 	"os"
 	"regexp"
 
+	"github.com/hashicorp/go-uuid"
 	"github.com/hashicorp/terraform-plugin-sdk/v2/diag"
 	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/schema"
 	"golang.org/x/crypto/ssh"
@@ -69,7 +70,8 @@ func resourceFirewallGroupCreate(ctx context.Context, d *schema.ResourceData, m 
 	if err != nil {
 		return diag.FromErr(err)
 	}
-
+	newUUID, _ := uuid.GenerateUUID()
+	d.SetId(newUUID)
 	return diags
 }
 
@@ -99,6 +101,7 @@ func resourceFirewallGroupDelete(ctx context.Context, d *schema.ResourceData, m 
 	if err != nil {
 		return diag.FromErr(err)
 	}
+	d.SetId("")
 
 	return diags
 }

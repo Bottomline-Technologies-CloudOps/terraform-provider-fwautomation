@@ -3,7 +3,7 @@ HOSTNAME=registry.terraform.io
 NAMESPACE=BT-CloudOps
 NAME=fwautomation
 BINARY=terraform-provider-${NAME}
-VERSION=1.1.30
+VERSION=1.1.31
 OS_ARCH=linux_amd64
 
 default: install
