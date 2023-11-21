@@ -3,7 +3,6 @@ package fwautomation
 import (
 	"bytes"
 	"context"
-	"encoding/json"
 	"fmt"
 	"os"
 	"regexp"
