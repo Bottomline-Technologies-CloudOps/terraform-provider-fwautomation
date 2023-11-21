@@ -145,6 +145,7 @@ func runResourceFirewallGroupsTask(c *ssh.Client, d *schema.ResourceData, method
 		return resp, fmt.Errorf("Error executing GenerateCommand: %s", err)
 	}
 	//err = session.Run(cmd)
+	fmt.Println(cmd)
 	err = session.Start(cmd)
 	if err != nil {
 		return resp, fmt.Errorf("Error running start command: %s, stderr: %s, stdout: %s", err, stderr.String(), stdout.String())
