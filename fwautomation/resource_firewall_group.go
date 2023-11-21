@@ -8,7 +8,6 @@ import (
 	"os"
 	"regexp"
 
-	"github.com/hashicorp/go-uuid"
 	"github.com/hashicorp/terraform-plugin-sdk/v2/diag"
 	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/schema"
 	"golang.org/x/crypto/ssh"
@@ -67,15 +66,10 @@ func resourceFirewallGroupCreate(ctx context.Context, d *schema.ResourceData, m 
 	var diags diag.Diagnostics
 
 	client := m.(*ssh.Client)
-	output, err := runResourceFirewallGroupsTask(client, d, "add")
-	debugLogOutput("create status", output.Status)
-	debugLogOutput("create reason", output.Reason)
+	err := runResourceFirewallGroupsTask(client, d, "add")
 	if err != nil {
 		return diag.FromErr(err)
 	}
-
-	newUUID, _ := uuid.GenerateUUID()
-	d.SetId(newUUID)
 
 	return diags
 }
@@ -85,24 +79,10 @@ func resourceFirewallGroupRead(ctx context.Context, d *schema.ResourceData, m in
 	var diags diag.Diagnostics
 
 	client := m.(*ssh.Client)
-	output, err := runResourceFirewallGroupsTask(client, d, "read")
-	debugLogOutput("read status", output.Status)
-	debugLogOutput("read reason", output.Reason)
+	err := runResourceFirewallGroupsTask(client, d, "read")
 	if err != nil {
 		return diag.FromErr(err)
 	}
-
-	// Check if the group exists
-	if output.Status != "success" {
-		diags = append(diags, diag.Diagnostic{
-			Severity: diag.Error,
-			Summary:  fmt.Sprintf("Failed to read firewall group %s: %s", d.Id(), output.Reason),
-		})
-		return diags
-	}
-
-	// Assuming there is additional data to be populated from the read operation
-	// Update the resource data here if needed
 
 	return diags
 }
@@ -116,23 +96,18 @@ func resourceFirewallGroupDelete(ctx context.Context, d *schema.ResourceData, m 
 	var diags diag.Diagnostics
 
 	client := m.(*ssh.Client)
-	output, err := runResourceFirewallGroupsTask(client, d, "remove")
+	err := runResourceFirewallGroupsTask(client, d, "remove")
 	if err != nil {
 		return diag.FromErr(err)
 	}
 
-	debugLogOutput(d.Id(), output.Status)
-	debugLogOutput(d.Id(), output.Reason)
-	d.SetId("")
-
 	return diags
 }
 
-func runResourceFirewallGroupsTask(c *ssh.Client, d *schema.ResourceData, method string) (FirewallResponse, error) {
-	resp := FirewallResponse{}
+func runResourceFirewallGroupsTask(c *ssh.Client, d *schema.ResourceData, method string) error {
 	session, err := c.NewSession()
 	if err != nil {
-		return resp, fmt.Errorf("Error creating SSH session: %s", err)
+		return fmt.Errorf("Error creating SSH session: %s", err)
 	}
 	defer session.Close()
 
@@ -142,32 +117,23 @@ func runResourceFirewallGroupsTask(c *ssh.Client, d *schema.ResourceData, method
 
 	cmd, err := generateCommand(d, method)
 	if err != nil {
-		return resp, fmt.Errorf("Error executing GenerateCommand: %s", err)
-	}
-	//err = session.Run(cmd)
-	if cmd != "cat" {
-		return resp, fmt.Errorf("This is a test debugging version, command: %s", cmd)
+		return fmt.Errorf("Error executing GenerateCommand: %s", err)
 	}
 	err = session.Start(cmd)
 	if err != nil {
-		return resp, fmt.Errorf("Error running start command: %s, stderr: %s, stdout: %s", err, stderr.String(), stdout.String())
+		return fmt.Errorf("Error running start command: %s, stderr: %s, stdout: %s", err, stderr.String(), stdout.String())
 	}
 	err = session.Wait()
 	if err != nil {
-		return resp, fmt.Errorf("Error running wait command: %s, stderr: %s, stdout: %s", err, stderr.String(), stdout.String())
+		return fmt.Errorf("Error running wait command: %s, stderr: %s, stdout: %s", err, stderr.String(), stdout.String())
 	}
-	//if err != nil {
-	//	return resp, fmt.Errorf("Error running command: %s, stderr: %s", err, stderr.String())
-	//}
 
 	str := stdout.String()
 	if err := json.Unmarshal([]byte(str), &resp); err != nil {
-		return resp, fmt.Errorf("Error parsing JSON response: %s, stderr: %s", err, stderr.String())
+		return fmt.Errorf("Error parsing JSON response: %s, stderr: %s", err, stderr.String())
 	}
 
-	// existing switch statement for handling response status
-
-	return resp, nil
+	return nil
 }
 
 func getValue(d *schema.ResourceData, key string, method string) string {
