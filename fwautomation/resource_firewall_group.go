@@ -140,7 +140,10 @@ func runResourceFirewallGroupsTask(c *ssh.Client, d *schema.ResourceData, method
 	session.Stdout = &stdout
 	session.Stderr = &stderr
 
-	cmd := generateCommand(d, method)
+	cmd, err := generateCommand(d, method)
+	if err != nil {
+		return resp, fmt.Errorf("Error executing GenerateCommand: %s", err)
+	}
 	//err = session.Run(cmd)
 	err = session.Start(cmd)
 	if err != nil {
@@ -177,12 +180,18 @@ func getValue(d *schema.ResourceData, key string, method string) string {
 	return val
 }
 
-func generateCommand(d *schema.ResourceData, method string) string {
+func generateCommand(d *schema.ResourceData, method string) (string, error) {
 	groupName := getValue(d, "group_name", method)
 	hostname := getValue(d, "hostname", method)
 	ipAddress := getValue(d, "ip_address", method)
 
-	return fmt.Sprintf("modify group group=%s hostname=%s ip=%s method=%s", groupName, hostname, ipAddress, method)
+	if method == "add" || method == "remove" {
+		return fmt.Sprintf("modify group group=%s hostname=%s ip=%s method=%s", groupName, hostname, ipAddress, method), nil
+	} else if method == "read" {
+		return fmt.Sprintf("show group group=%s", groupName), nil
+	} else {
+		return "", fmt.Errorf("Method not supported.%s", method)
+	}
 }
 
 func debugLogOutput(id string, output string) {
