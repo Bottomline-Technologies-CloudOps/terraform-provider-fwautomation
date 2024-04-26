@@ -8,6 +8,7 @@ import (
 	"regexp"
 	"time"
 
+	"github.com/google/uuid"
 	"github.com/hashicorp/terraform-plugin-sdk/v2/diag"
 	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/schema"
 	"golang.org/x/crypto/ssh"
@@ -77,19 +78,19 @@ func resourceFirewallGroupDelete(ctx context.Context, d *schema.ResourceData, m 
 func manageFirewallGroup(ctx context.Context, d *schema.ResourceData, config *ManagementConfig, method string) diag.Diagnostics {
 	key, err := ioutil.ReadFile(d.Get("authentication_key_path").(string))
 	if err != nil {
-		return diag.FromErr(fmt.Errorf("failed to load private key: %s", err))
+		return diag.Diagnostics{diag.FromErr(fmt.Errorf("failed to load private key: %s", err))}
 	}
 
 	signer, err := ssh.ParsePrivateKey(key)
 	if err != nil {
-		return diag.FromErr(fmt.Errorf("failed to parse private key: %s", err))
+		return diag.Diagnostics{diag.FromErr(fmt.Errorf("failed to parse private key: %s", err))}
 	}
 
 	authMethod := ssh.PublicKeys(signer)
 
 	firewallGroups, err := getFirewallGroups(d)
 	if err != nil {
-		return diag.FromErr(err)
+		return diag.Diagnostics{diag.FromErr(err)}
 	}
 
 	var diags diag.Diagnostics
@@ -104,7 +105,7 @@ func manageFirewallGroup(ctx context.Context, d *schema.ResourceData, config *Ma
 
 		sshClient, err := ssh.Dial("tcp", fmt.Sprintf("%s:%d", config.Server, 22), sshConfig)
 		if err != nil {
-			diags = append(diags, diag.FromErr(fmt.Errorf("failed to connect for group %s: %v", group.GroupName, err)))
+			diags = append(diags, diag.FromErr(fmt.Errorf("failed to connect for group %s: %v", group.Name, err))...)
 			continue
 		}
 
@@ -112,12 +113,12 @@ func manageFirewallGroup(ctx context.Context, d *schema.ResourceData, config *Ma
 
 		err = runResourceFirewallGroupsTask(sshClient, d, method, group)
 		if err != nil {
-			diags = append(diags, diag.FromErr(fmt.Errorf("error processing group %s: %v", group.GroupName, err)))
+			diags = append(diags, diag.FromErr(fmt.Errorf("error processing group %s: %v", group.Name, err))...)
 		}
 	}
 
 	if len(diags) == 0 {
-		d.SetId(createUniqueId())
+		d.SetId(uuid.New().String())
 	}
 
 	return diags
