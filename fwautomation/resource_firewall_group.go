@@ -4,10 +4,10 @@ import (
 	"bytes"
 	"context"
 	"fmt"
-	"os"
+	"io/ioutil"
 	"regexp"
+	"time"
 
-	"github.com/hashicorp/go-uuid"
 	"github.com/hashicorp/terraform-plugin-sdk/v2/diag"
 	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/schema"
 	"golang.org/x/crypto/ssh"
@@ -17,7 +17,6 @@ func resourceFirewallGroup() *schema.Resource {
 	return &schema.Resource{
 		CreateContext: resourceFirewallGroupCreate,
 		ReadContext:   resourceFirewallGroupRead,
-		//UpdateContext: resourceFirewallGroupUpdate,
 		DeleteContext: resourceFirewallGroupDelete,
 		Schema: map[string]*schema.Schema{
 			"group_name": &schema.Schema{
@@ -51,62 +50,80 @@ func resourceFirewallGroup() *schema.Resource {
 				ValidateFunc: func(val interface{}, key string) (warns []string, errs []error) {
 					v := val.(string)
 					if match, _ := regexp.MatchString("[0-9]+\\.[0-9]+\\.[0-9]+\\.[0-9]+", v); !match {
-						errs = append(errs, fmt.Errorf("%q includes invalid characters. May contain [uppercase letters, underscores].", key))
+						errs = append(errs, fmt.Errorf("%q must be an IP address. Format [0-9]+\\.[0-9]+\\.[0-9]+\\.[0-9]+", key))
 					}
 					return
 				},
 			},
 		},
-		SchemaVersion: 1,
 	}
 }
 
 func resourceFirewallGroupCreate(ctx context.Context, d *schema.ResourceData, m interface{}) diag.Diagnostics {
-	// Warning or errors can be collected in a slice type
-	var diags diag.Diagnostics
-
-	client := m.(*ssh.Client)
-	err := runResourceFirewallGroupsTask(client, d, "add")
-	if err != nil {
-		return diag.FromErr(err)
-	}
-	newUUID, _ := uuid.GenerateUUID()
-	d.SetId(newUUID)
-	return diags
+	config := m.(*ManagementConfig)
+	return manageFirewallGroup(ctx, d, config, "add")
 }
 
 func resourceFirewallGroupRead(ctx context.Context, d *schema.ResourceData, m interface{}) diag.Diagnostics {
-	// Warning or errors can be collected in a slice type
-	var diags diag.Diagnostics
-
-	client := m.(*ssh.Client)
-	err := runResourceFirewallGroupsTask(client, d, "read")
-	if err != nil {
-		return diag.FromErr(err)
-	}
-
-	return diags
-}
-
-func resourceFirewallGroupUpdate(ctx context.Context, d *schema.ResourceData, m interface{}) diag.Diagnostics {
-	return resourceFirewallGroupRead(ctx, d, m)
+	config := m.(*ManagementConfig)
+	return manageFirewallGroup(ctx, d, config, "read")
 }
 
 func resourceFirewallGroupDelete(ctx context.Context, d *schema.ResourceData, m interface{}) diag.Diagnostics {
-	// Warning or errors can be collected in a slice type
-	var diags diag.Diagnostics
+	config := m.(*ManagementConfig)
+	return manageFirewallGroup(ctx, d, config, "delete")
+}
 
-	client := m.(*ssh.Client)
-	err := runResourceFirewallGroupsTask(client, d, "remove")
+func manageFirewallGroup(ctx context.Context, d *schema.ResourceData, config *ManagementConfig, method string) diag.Diagnostics {
+	key, err := ioutil.ReadFile(d.Get("authentication_key_path").(string))
+	if err != nil {
+		return diag.FromErr(fmt.Errorf("failed to load private key: %s", err))
+	}
+
+	signer, err := ssh.ParsePrivateKey(key)
+	if err != nil {
+		return diag.FromErr(fmt.Errorf("failed to parse private key: %s", err))
+	}
+
+	authMethod := ssh.PublicKeys(signer)
+
+	firewallGroups, err := getFirewallGroups(d)
 	if err != nil {
 		return diag.FromErr(err)
 	}
-	d.SetId("")
+
+	var diags diag.Diagnostics
+
+	for _, group := range firewallGroups {
+		sshConfig := &ssh.ClientConfig{
+			User:            "automate",
+			Auth:            []ssh.AuthMethod{authMethod},
+			HostKeyCallback: ssh.InsecureIgnoreHostKey(),
+			Timeout:         5 * time.Second,
+		}
+
+		sshClient, err := ssh.Dial("tcp", fmt.Sprintf("%s:%d", config.Server, 22), sshConfig)
+		if err != nil {
+			diags = append(diags, diag.FromErr(fmt.Errorf("failed to connect for group %s: %v", group.GroupName, err)))
+			continue
+		}
+
+		defer sshClient.Close()
+
+		err = runResourceFirewallGroupsTask(sshClient, d, method, group)
+		if err != nil {
+			diags = append(diags, diag.FromErr(fmt.Errorf("error processing group %s: %v", group.GroupName, err)))
+		}
+	}
+
+	if len(diags) == 0 {
+		d.SetId(createUniqueId())
+	}
 
 	return diags
 }
 
-func runResourceFirewallGroupsTask(c *ssh.Client, d *schema.ResourceData, method string) error {
+func runResourceFirewallGroupsTask(c *ssh.Client, d *schema.ResourceData, method string, group FirewallGroup) error {
 	session, err := c.NewSession()
 	if err != nil {
 		return fmt.Errorf("Error creating SSH session: %s", err)
@@ -133,40 +150,13 @@ func runResourceFirewallGroupsTask(c *ssh.Client, d *schema.ResourceData, method
 	return nil
 }
 
-func getValue(d *schema.ResourceData, key string, method string) string {
-	var val string
-
-	if d.HasChange(key) && method == "remove" {
-		valInterface, _ := d.GetChange(key)
-		val = valInterface.(string)
-	} else {
-		val = d.Get(key).(string)
-	}
-
-	return val
+func getFirewallGroups(d *schema.ResourceData) ([]FirewallGroup, error) {
+	// Implement the logic to extract firewall groups from the resource data
+	// Return a slice of FirewallGroup
+	return []FirewallGroup{}, nil
 }
 
 func generateCommand(d *schema.ResourceData, method string) (string, error) {
-	groupName := getValue(d, "group_name", method)
-	hostname := getValue(d, "hostname", method)
-	ipAddress := getValue(d, "ip_address", method)
-
-	if method == "add" || method == "remove" {
-		return fmt.Sprintf("modify group group=%s hostname=%s ip=%s method=%s", groupName, hostname, ipAddress, method), nil
-	} else if method == "read" {
-		return fmt.Sprintf("show group group=%s", groupName), nil
-	} else {
-		return "", fmt.Errorf("Method not supported.%s", method)
-	}
-}
-
-func debugLogOutput(id string, output string) {
-	// Debug log for development
-	f, _ := os.OpenFile("./terraform-provider-fwautomation.log", os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
-	defer f.Close()
-	_, err := f.WriteString(id + ": " + output + "\n")
-	if err != nil {
-		panic(err)
-	}
-	f.Sync()
+	// Implement the command generation logic based on method
+	return "", nil
 }
