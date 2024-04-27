@@ -9,7 +9,6 @@ import (
 	"time"
 
 	"github.com/google/uuid" // Ensure you are using google/uuid for uuid.NewString()
-	"github.com/hashicorp/go-uuid"
 	"github.com/hashicorp/terraform-plugin-sdk/v2/diag"
 	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/schema"
 	"golang.org/x/crypto/ssh"
