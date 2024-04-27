@@ -4,7 +4,7 @@ import (
 	"bytes"
 	"context"
 	"fmt"
-	"io/ioutil"
+	"os"
 	"regexp"
 	"time"
 
@@ -61,9 +61,10 @@ func resourceFirewallGroup() *schema.Resource {
 }
 
 func resourceFirewallGroupCreate(ctx context.Context, d *schema.ResourceData, m interface{}) diag.Diagnostics {
+	config := m.(*ManagementConfig) // Ensure this is the correct type
 	var diags diag.Diagnostics
 
-	client, err := setupSSHConnection(m.(*ManagementConfig))
+	client, err := setupSSHConnection(config)
 	if err != nil {
 		return diag.FromErr(err)
 	}
@@ -79,9 +80,10 @@ func resourceFirewallGroupCreate(ctx context.Context, d *schema.ResourceData, m 
 }
 
 func resourceFirewallGroupRead(ctx context.Context, d *schema.ResourceData, m interface{}) diag.Diagnostics {
+	config := m.(*ManagementConfig) // Ensure this is the correct type
 	var diags diag.Diagnostics
 
-	client, err := setupSSHConnection(m.(*ManagementConfig))
+	client, err := setupSSHConnection(config)
 	if err != nil {
 		return diag.FromErr(err)
 	}
@@ -92,13 +94,15 @@ func resourceFirewallGroupRead(ctx context.Context, d *schema.ResourceData, m in
 		return diag.FromErr(err)
 	}
 
+	d.SetId(uuid.NewString()) // Set the ID of the resource
 	return diags
 }
 
 func resourceFirewallGroupDelete(ctx context.Context, d *schema.ResourceData, m interface{}) diag.Diagnostics {
+	config := m.(*ManagementConfig) // Ensure this is the correct type
 	var diags diag.Diagnostics
 
-	client, err := setupSSHConnection(m.(*ManagementConfig))
+	client, err := setupSSHConnection(config)
 	if err != nil {
 		return diag.FromErr(err)
 	}
@@ -109,12 +113,12 @@ func resourceFirewallGroupDelete(ctx context.Context, d *schema.ResourceData, m 
 		return diag.FromErr(err)
 	}
 
-	d.SetId("") // Clear the ID as the resource is now deleted
+	d.SetId(uuid.NewString()) // Set the ID of the resource
 	return diags
 }
 
 func setupSSHConnection(config *ManagementConfig) (*ssh.Client, error) {
-	key, err := ioutil.ReadFile(config.AuthenticationKeyPath)
+	key, err := os.ReadFile(config.AuthenticationKeyPath)
 	if err != nil {
 		return nil, fmt.Errorf("failed to load private key: %s", err)
 	}

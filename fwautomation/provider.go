@@ -2,7 +2,7 @@ package fwautomation
 
 import (
 	"context"
-	"io/ioutil"
+	"os"
 	"time"
 
 	"github.com/hashicorp/terraform-plugin-sdk/v2/diag"
@@ -48,7 +48,7 @@ func providerConfigure(ctx context.Context, d *schema.ResourceData) (interface{}
 	var diags diag.Diagnostics
 
 	// Loading the private key for authentications
-	key, err := ioutil.ReadFile(d.Get("authentication_key_path").(string))
+	key, err := os.ReadFile(d.Get("authentication_key_path").(string))
 	if err != nil {
 		return nil, diag.FromErr(err)
 	}
