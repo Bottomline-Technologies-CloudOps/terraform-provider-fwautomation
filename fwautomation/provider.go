@@ -11,8 +11,9 @@ import (
 )
 
 type ManagementConfig struct {
-	Server string
-	Domain string
+	Server                string
+	Domain                string
+	AuthenticationKeyPath string // Make sure this is correctly added to the struct
 }
 
 // Provider -
@@ -20,25 +21,25 @@ func Provider() *schema.Provider {
 	return &schema.Provider{
 		Schema: map[string]*schema.Schema{
 			"management_server": &schema.Schema{
-				Type: schema.TypeString,
-				Required: true,
+				Type:        schema.TypeString,
+				Required:    true,
 				DefaultFunc: schema.EnvDefaultFunc("FWGROUPS_SERVER", nil),
 			},
 			"domain": &schema.Schema{
-				Type: schema.TypeString,
-				Required: true,
+				Type:        schema.TypeString,
+				Required:    true,
 				DefaultFunc: schema.EnvDefaultFunc("FWGROUPS_DOMAIN", nil),
 			},
 			"authentication_key_path": &schema.Schema{
-				Type: schema.TypeString,
-				Required: true,
+				Type:        schema.TypeString,
+				Required:    true,
 				DefaultFunc: schema.EnvDefaultFunc("FWGROUPS_AUTH_KEY_PATH", nil),
 			},
 		},
-		ResourcesMap:   map[string]*schema.Resource{
+		ResourcesMap: map[string]*schema.Resource{
 			"fwautomation_fwgroup": resourceFirewallGroup(),
 		},
-		DataSourcesMap: map[string]*schema.Resource{},
+		DataSourcesMap:       map[string]*schema.Resource{},
 		ConfigureContextFunc: providerConfigure,
 	}
 }
@@ -48,7 +49,7 @@ func providerConfigure(ctx context.Context, d *schema.ResourceData) (interface{}
 
 	// Loading the private key for authentications
 	key, err := ioutil.ReadFile(d.Get("authentication_key_path").(string))
-	if err != nil{
+	if err != nil {
 		return nil, diag.FromErr(err)
 	}
 
@@ -65,7 +66,7 @@ func providerConfigure(ctx context.Context, d *schema.ResourceData) (interface{}
 			ssh.PublicKeys(signer),
 		},
 		HostKeyCallback: ssh.InsecureIgnoreHostKey(),
-		Timeout: time.Duration(5)*time.Second,
+		Timeout:         time.Duration(5) * time.Second,
 	}
 
 	c, err := ssh.Dial("tcp", d.Get("management_server").(string), config)

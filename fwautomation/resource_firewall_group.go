@@ -8,7 +8,8 @@ import (
 	"regexp"
 	"time"
 
-	"github.com/google/uuid"
+	"github.com/google/uuid" // Ensure you are using google/uuid for uuid.NewString()
+	"github.com/hashicorp/go-uuid"
 	"github.com/hashicorp/terraform-plugin-sdk/v2/diag"
 	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/schema"
 	"golang.org/x/crypto/ssh"
@@ -18,6 +19,7 @@ func resourceFirewallGroup() *schema.Resource {
 	return &schema.Resource{
 		CreateContext: resourceFirewallGroupCreate,
 		ReadContext:   resourceFirewallGroupRead,
+		UpdateContext: resourceFirewallGroupUpdate,
 		DeleteContext: resourceFirewallGroupDelete,
 		Schema: map[string]*schema.Schema{
 			"group_name": &schema.Schema{
@@ -62,69 +64,90 @@ func resourceFirewallGroup() *schema.Resource {
 
 func resourceFirewallGroupCreate(ctx context.Context, d *schema.ResourceData, m interface{}) diag.Diagnostics {
 	config := m.(*ManagementConfig)
-	return manageFirewallGroup(ctx, d, config, "add")
+	var diags diag.Diagnostics
+
+	client, err := setupSSHConnection(config)
+	if err != nil {
+		return diag.FromErr(err)
+	}
+	defer client.Close()
+
+	err = runResourceFirewallGroupsTask(client, d, "add")
+	if err != nil {
+		return diag.FromErr(err)
+	}
+	d.SetId(uuid.New().String()) // Using UUID for unique ID generation
+	return diags
 }
 
 func resourceFirewallGroupRead(ctx context.Context, d *schema.ResourceData, m interface{}) diag.Diagnostics {
-	config := m.(*ManagementConfig)
-	return manageFirewallGroup(ctx, d, config, "read")
-}
-
-func resourceFirewallGroupDelete(ctx context.Context, d *schema.ResourceData, m interface{}) diag.Diagnostics {
-	config := m.(*ManagementConfig)
-	return manageFirewallGroup(ctx, d, config, "delete")
-}
-
-func manageFirewallGroup(ctx context.Context, d *schema.ResourceData, config *ManagementConfig, method string) diag.Diagnostics {
-	key, err := ioutil.ReadFile(d.Get("authentication_key_path").(string))
-	if err != nil {
-		return diag.Diagnostics{diag.FromErr(fmt.Errorf("failed to load private key: %s", err))}
-	}
-
-	signer, err := ssh.ParsePrivateKey(key)
-	if err != nil {
-		return diag.Diagnostics{diag.FromErr(fmt.Errorf("failed to parse private key: %s", err))}
-	}
-
-	authMethod := ssh.PublicKeys(signer)
-
-	firewallGroups, err := getFirewallGroups(d)
-	if err != nil {
-		return diag.Diagnostics{diag.FromErr(err)}
-	}
-
 	var diags diag.Diagnostics
 
-	for _, group := range firewallGroups {
-		sshConfig := &ssh.ClientConfig{
-			User:            "automate",
-			Auth:            []ssh.AuthMethod{authMethod},
-			HostKeyCallback: ssh.InsecureIgnoreHostKey(),
-			Timeout:         5 * time.Second,
-		}
-
-		sshClient, err := ssh.Dial("tcp", fmt.Sprintf("%s:%d", config.Server, 22), sshConfig)
-		if err != nil {
-			diags = append(diags, diag.FromErr(fmt.Errorf("failed to connect for group %s: %v", group.Name, err))...)
-			continue
-		}
-
-		defer sshClient.Close()
-
-		err = runResourceFirewallGroupsTask(sshClient, d, method, group)
-		if err != nil {
-			diags = append(diags, diag.FromErr(fmt.Errorf("error processing group %s: %v", group.Name, err))...)
-		}
+	config := m.(*ManagementConfig)
+	client, err := setupSSHConnection(config)
+	if err != nil {
+		return diag.FromErr(err)
 	}
+	defer client.Close()
 
-	if len(diags) == 0 {
-		d.SetId(uuid.New().String())
+	err = runResourceFirewallGroupsTask(client, d, "read")
+	if err != nil {
+		return diag.FromErr(err)
 	}
 
 	return diags
 }
 
-func runResourceFirewallGroupsTask(c *ssh.Client, d *schema.ResourceData, method string, group FirewallGroup) error {
+func resourceFirewallGroupUpdate(ctx context.Context, d *schema.ResourceData, m interface{}) diag.Diagnostics {
+	return resourceFirewallGroupRead(ctx, d, m)
+}
+
+func resourceFirewallGroupDelete(ctx context.Context, d *schema.ResourceData, m interface{}) diag.Diagnostics {
+	var diags diag.Diagnostics
+
+	config := m.(*ManagementConfig)
+	client, err := setupSSHConnection(config)
+	if err != nil {
+		return diag.FromErr(err)
+	}
+	defer client.Close()
+
+	err = runResourceFirewallGroupsTask(client, d, "remove")
+	if err != nil {
+		return diag.FromErr(err)
+	}
+	d.SetId("")
+	return diags
+}
+
+func setupSSHConnection(config *ManagementConfig) (*ssh.Client, error) {
+	key, err := ioutil.ReadFile(config.AuthenticationKeyPath) // Adjusted for the correct field name
+	if err != nil {
+		return nil, fmt.Errorf("failed to load private key: %s", err)
+	}
+
+	signer, err := ssh.ParsePrivateKey(key)
+	if err != nil {
+		return nil, fmt.Errorf("failed to parse private key: %s", err)
+	}
+
+	sshConfig := &ssh.ClientConfig{
+		User: "automate",
+		Auth: []ssh.AuthMethod{
+			ssh.PublicKeys(signer),
+		},
+		HostKeyCallback: ssh.InsecureIgnoreHostKey(),
+		Timeout:         5 * time.Second,
+	}
+
+	client, err := ssh.Dial("tcp", fmt.Sprintf("%s:%d", config.Server, 22), sshConfig)
+	if err != nil {
+		return nil, fmt.Errorf("failed to connect to server: %s", err)
+	}
+	return client, nil
+}
+
+func runResourceFirewallGroupsTask(c *ssh.Client, d *schema.ResourceData, method string) error {
 	session, err := c.NewSession()
 	if err != nil {
 		return fmt.Errorf("Error creating SSH session: %s", err)
@@ -151,13 +174,16 @@ func runResourceFirewallGroupsTask(c *ssh.Client, d *schema.ResourceData, method
 	return nil
 }
 
-func getFirewallGroups(d *schema.ResourceData) ([]FirewallGroup, error) {
-	// Implement the logic to extract firewall groups from the resource data
-	// Return a slice of FirewallGroup
-	return []FirewallGroup{}, nil
-}
-
 func generateCommand(d *schema.ResourceData, method string) (string, error) {
-	// Implement the command generation logic based on method
-	return "", nil
+	groupName := d.Get("group_name").(string)
+	hostname := d.Get("hostname").(string)
+	ipAddress := d.Get("ip_address").(string)
+
+	if method == "add" || method == "remove" {
+		return fmt.Sprintf("modify group group=%s hostname=%s ip=%s method=%s", groupName, hostname, ipAddress, method), nil
+	} else if method == "read" {
+		return fmt.Sprintf("show group group=%s", groupName), nil
+	} else {
+		return "", fmt.Errorf("Method not supported: %s", method)
+	}
 }
