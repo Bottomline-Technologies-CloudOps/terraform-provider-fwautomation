@@ -61,6 +61,7 @@ func resourceFirewallGroup() *schema.Resource {
 	}
 }
 
+// Adding comments for better visibility
 func resourceFirewallGroupCreate(ctx context.Context, d *schema.ResourceData, m interface{}) diag.Diagnostics {
 	config := m.(*ManagementConfig)
 	var diags diag.Diagnostics
