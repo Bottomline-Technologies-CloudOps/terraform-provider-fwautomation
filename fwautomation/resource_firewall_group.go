@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"io/ioutil" // Changed from "os" to "io/ioutil" for consistency with file reading
 	"regexp"
+	"strings"
 	"time"
 
 	"github.com/google/uuid"
@@ -136,7 +137,13 @@ func setupSSHConnection(config *ManagementConfig) (*ssh.Client, error) {
 		Timeout:         5 * time.Second,
 	}
 
-	return ssh.Dial("tcp", fmt.Sprintf("%s:%d", config.Server, 22), sshConfig)
+	// Ensure the server address includes a port
+	serverAddress := config.Server
+	if !strings.Contains(serverAddress, ":") {
+		serverAddress = fmt.Sprintf("%s:22", serverAddress) // Append port if not present
+	}
+
+	return ssh.Dial("tcp", serverAddress, sshConfig)
 }
 
 func runResourceFirewallGroupsTask(client *ssh.Client, d *schema.ResourceData, method string) error {
