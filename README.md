@@ -1,21 +1,36 @@
-# Terraform Provider Hashicups
 
-Run the following command to build the provider
+# FWAutomation Terraform Provider
 
-```shell
-go build -o terraform-provider-hashicups
-```
+## Overview
+The FWAutomation Terraform Provider enables users to manage firewall configurations seamlessly through Terraform, facilitating infrastructure as code (IaC) practices to automate the setup and management of firewall rules and groups.
 
-## Test sample configuration
+## Features
+- Create, update, and delete firewall groups.
+- Supports multiple firewall configurations.
+- Easily integrates into existing Terraform workflows.
 
-First, build and install the provider.
+## Version Compatibility
+This provider requires Terraform 0.12 or later and supports Terraform protocol version 5.0.
 
-```shell
-make install
-```
+## Installation
+To install the FWAutomation provider, include it in your Terraform configuration like so:
 
-Then, run the following command to initialize the workspace and apply the sample configuration.
+\`\`\`hcl
+terraform {
+  required_providers {
+    fwautomation = {
+      source = "hashicorp/fwautomation"
+      version = "1.0.0"
+    }
+  }
+}
+\`\`\`
 
-```shell
-terraform init && terraform apply
-```
+Then run the following command to initialize your Terraform workspace:
+
+\`\`\`shell
+terraform init
+\`\`\`
+
+## Usage
+Refer to the examples provided in the `.tf` files within this repository to get started with configuring firewall groups using this provider.
