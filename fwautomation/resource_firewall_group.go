@@ -4,7 +4,7 @@ import (
 	"bytes"
 	"context"
 	"fmt"
-	"io/ioutil" // Changed from "os" to "io/ioutil" for consistency with file reading
+	"io/ioutil" // Use ioutil for reading files
 	"regexp"
 	"strings"
 	"time"
@@ -27,10 +27,10 @@ func resourceFirewallGroup() *schema.Resource {
 				ForceNew: true,
 				ValidateFunc: func(val interface{}, key string) (warns []string, errs []error) {
 					v := val.(string)
-					if match, _ := regexp.MatchString("[A-Z_]*", v); !match {
-						errs = append(errs, fmt.Errorf("%q includes invalid characters. May contain [uppercase letters, underscores].", key))
+					if !regexp.MustCompile(`^[A-Z_]+$`).MatchString(v) {
+						errs = append(errs, fmt.Errorf("%q only allows uppercase letters and underscores: %s", key, v))
 					}
-					return
+					return warns, errs
 				},
 			},
 			"hostname": {
@@ -39,10 +39,10 @@ func resourceFirewallGroup() *schema.Resource {
 				ForceNew: true,
 				ValidateFunc: func(val interface{}, key string) (warns []string, errs []error) {
 					v := val.(string)
-					if match, _ := regexp.MatchString("[a-z\\.-]*", v); !match {
-						errs = append(errs, fmt.Errorf("%q must be a fully qualified domain name. May contain [letters, hyphens, periods].", key))
+					if !regexp.MustCompile(`^[a-z\.-]+$`).MatchString(v) {
+						errs = append(errs, fmt.Errorf("%q must be a fully qualified domain name and only contain lowercase letters, periods, and hyphens: %s", key, v))
 					}
-					return
+					return warns, errs
 				},
 			},
 			"ip_address": {
@@ -51,13 +51,14 @@ func resourceFirewallGroup() *schema.Resource {
 				ForceNew: true,
 				ValidateFunc: func(val interface{}, key string) (warns []string, errs []error) {
 					v := val.(string)
-					if match, _ := regexp.MatchString("[0-9]+\\.[0-9]+\\.[0-9]+\\.[0-9]+", v); !match {
-						errs = append(errs, fmt.Errorf("%q must be an IP address. Format [0-9]+\\.[0-9]+\\.[0-9]+\\.[0-9]+", key))
+					if !regexp.MustCompile(`^\d+\.\d+\.\d+\.\d+$`).MatchString(v) {
+						errs = append(errs, fmt.Errorf("%q must be a valid IP address: %s", key, v))
 					}
-					return
+					return warns, errs
 				},
 			},
 		},
+		SchemaVersion: 1, // Set the schema version to 1
 	}
 }
 
