@@ -27,8 +27,9 @@ func resourceFirewallGroup() *schema.Resource {
 				ForceNew: true,
 				ValidateFunc: func(val interface{}, key string) (warns []string, errs []error) {
 					v := val.(string)
-					if !regexp.MustCompile(`^[A-Z_]+$`).MatchString(v) {
-						errs = append(errs, fmt.Errorf("%q only allows uppercase letters and underscores: %s", key, v))
+					// Updated regex to include numbers and to ensure it only matches allowed characters fully.
+					if !regexp.MustCompile(`^[A-Z0-9_]+$`).MatchString(v) {
+						errs = append(errs, fmt.Errorf("%q only allows uppercase letters, numbers, and underscores: %s", key, v))
 					}
 					return warns, errs
 				},
@@ -39,8 +40,9 @@ func resourceFirewallGroup() *schema.Resource {
 				ForceNew: true,
 				ValidateFunc: func(val interface{}, key string) (warns []string, errs []error) {
 					v := val.(string)
-					if !regexp.MustCompile(`^[a-z\.-]+$`).MatchString(v) {
-						errs = append(errs, fmt.Errorf("%q must be a fully qualified domain name and only contain lowercase letters, periods, and hyphens: %s", key, v))
+					// Updated regex to ensure it matches typical FQDN patterns including digits.
+					if !regexp.MustCompile(`^[a-z0-9\.-]+\.[a-z]{2,}$`).MatchString(v) {
+						errs = append(errs, fmt.Errorf("%q must be a fully qualified domain name and only contain lowercase letters, numbers, periods, and hyphens: %s", key, v))
 					}
 					return warns, errs
 				},
@@ -58,7 +60,7 @@ func resourceFirewallGroup() *schema.Resource {
 				},
 			},
 		},
-		SchemaVersion: 1, // Set the schema version to 1
+		SchemaVersion: 1,
 	}
 }
 
