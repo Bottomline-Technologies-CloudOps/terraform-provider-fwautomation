@@ -4,7 +4,7 @@ import (
 	"bytes"
 	"context"
 	"fmt"
-	"os"
+	"io/ioutil" // Changed from "os" to "io/ioutil" for consistency with file reading
 	"regexp"
 	"time"
 
@@ -20,7 +20,7 @@ func resourceFirewallGroup() *schema.Resource {
 		ReadContext:   resourceFirewallGroupRead,
 		DeleteContext: resourceFirewallGroupDelete,
 		Schema: map[string]*schema.Schema{
-			"group_name": &schema.Schema{
+			"group_name": {
 				Type:     schema.TypeString,
 				Required: true,
 				ForceNew: true,
@@ -32,7 +32,7 @@ func resourceFirewallGroup() *schema.Resource {
 					return
 				},
 			},
-			"hostname": &schema.Schema{
+			"hostname": {
 				Type:     schema.TypeString,
 				Required: true,
 				ForceNew: true,
@@ -44,7 +44,7 @@ func resourceFirewallGroup() *schema.Resource {
 					return
 				},
 			},
-			"ip_address": &schema.Schema{
+			"ip_address": {
 				Type:     schema.TypeString,
 				Required: true,
 				ForceNew: true,
@@ -61,7 +61,7 @@ func resourceFirewallGroup() *schema.Resource {
 }
 
 func resourceFirewallGroupCreate(ctx context.Context, d *schema.ResourceData, m interface{}) diag.Diagnostics {
-	config := m.(*ManagementConfig) // Ensure this is the correct type
+	config := m.(*ManagementConfig)
 	var diags diag.Diagnostics
 
 	client, err := setupSSHConnection(config)
@@ -75,12 +75,12 @@ func resourceFirewallGroupCreate(ctx context.Context, d *schema.ResourceData, m 
 		return diag.FromErr(err)
 	}
 
-	d.SetId(uuid.NewString()) // Set the ID of the resource
+	d.SetId(uuid.NewString()) // Correctly setting the ID after successful creation
 	return diags
 }
 
 func resourceFirewallGroupRead(ctx context.Context, d *schema.ResourceData, m interface{}) diag.Diagnostics {
-	config := m.(*ManagementConfig) // Ensure this is the correct type
+	config := m.(*ManagementConfig)
 	var diags diag.Diagnostics
 
 	client, err := setupSSHConnection(config)
@@ -94,12 +94,11 @@ func resourceFirewallGroupRead(ctx context.Context, d *schema.ResourceData, m in
 		return diag.FromErr(err)
 	}
 
-	d.SetId(uuid.NewString()) // Set the ID of the resource
 	return diags
 }
 
 func resourceFirewallGroupDelete(ctx context.Context, d *schema.ResourceData, m interface{}) diag.Diagnostics {
-	config := m.(*ManagementConfig) // Ensure this is the correct type
+	config := m.(*ManagementConfig)
 	var diags diag.Diagnostics
 
 	client, err := setupSSHConnection(config)
@@ -113,12 +112,12 @@ func resourceFirewallGroupDelete(ctx context.Context, d *schema.ResourceData, m 
 		return diag.FromErr(err)
 	}
 
-	d.SetId(uuid.NewString()) // Set the ID of the resource
+	d.SetId("") // Correctly clearing the ID upon successful deletion
 	return diags
 }
 
 func setupSSHConnection(config *ManagementConfig) (*ssh.Client, error) {
-	key, err := os.ReadFile(config.AuthenticationKeyPath)
+	key, err := ioutil.ReadFile(config.AuthenticationKeyPath)
 	if err != nil {
 		return nil, fmt.Errorf("failed to load private key: %s", err)
 	}
