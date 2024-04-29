@@ -15,7 +15,7 @@ This provider requires Terraform 0.12 or later and supports Terraform protocol v
 ## Installation
 To install the FWAutomation provider, include it in your Terraform configuration like so:
 
-\`\`\`hcl
+```hcl
 terraform {
   required_providers {
     fwautomation = {
@@ -24,13 +24,13 @@ terraform {
     }
   }
 }
-\`\`\`
+```
 
 Then run the following command to initialize your Terraform workspace:
 
-\`\`\`shell
+```shell
 terraform init
-\`\`\`
+```
 
 ## Usage
 Refer to the examples provided in the `.tf` files within this repository to get started with configuring firewall groups using this provider.
